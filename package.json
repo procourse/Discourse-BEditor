@@ -1,0 +1,35 @@
+{
+  "name": "discourse-b-editor",
+  "version": "1.0.0",
+  "description": "Replacing Discourse Editor (d-editor) to Better Editor (b-editor)",
+  "main": "index.js",
+  "scripts": {
+    "build": "npm run build:vendor; npm run build:discourse; npm run build:b-editor",
+    "build:b-editor": "babel src/b-editor --out-dir=assets/javascripts/b-editor; for file in ./assets/javascripts/b-editor/*.js; do mv -- \"${file}\" \"${file/%js/es6}\"; done",
+    "build:discourse": "cp -r src/discourse assets/javascripts",
+    "build:vendor": "cp -r src/vendor assets/javascripts",
+
+    "vendor": "npm run vendor:react; npm run vendor:react-dom; npm run vendor:draft; npm run vendor:immutable",
+    "vendor:draft": "curl https://cdnjs.cloudflare.com/ajax/libs/draft-js/0.10.1/Draft.js > src/vendor/draft.js",
+    "vendor:react": "curl https://cdnjs.cloudflare.com/ajax/libs/react/15.6.1/react.js > src/vendor/react.js",
+    "vendor:react-dom": "curl https://cdnjs.cloudflare.com/ajax/libs/react/15.6.1/react-dom.js > src/vendor/react-dom.js",
+    "vendor:immutable": "curl https://cdnjs.cloudflare.com/ajax/libs/immutable/3.8.1/immutable.js > src/vendor/immutable.js",
+
+    "clean": "rm -rf assets/javascripts/*",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "postinstall": "npm run vendor"
+  },
+  "keywords": [
+    "discourse",
+    "wysiwyg",
+    "rich",
+    "text",
+    "editor"
+  ],
+  "author": "Quang-Buu Le <quangbuule@gmail.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "babel-cli": "^6.26.0",
+    "babel-plugin-transform-react-jsx": "^6.24.1"
+  }
+}
