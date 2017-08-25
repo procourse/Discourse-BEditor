@@ -7,7 +7,7 @@
     "build": "npm run build:vendor; npm run build:discourse; npm run build:b-editor",
     "build:b-editor": "babel src/b-editor --out-dir=assets/javascripts/b-editor; for file in ./assets/javascripts/b-editor/*.js; do mv -- \"${file}\" \"${file/%js/es6}\"; done",
     "build:discourse": "cp -r src/discourse assets/javascripts",
-    "build:vendor": "cp -r src/vendor assets/javascripts",
+    "build:vendor": "mkdir -p assets/javascripts/vendor; cp src/vendor/*.js assets/javascripts/vendor",
 
     "vendor": "npm run vendor:react; npm run vendor:react-dom; npm run vendor:draft; npm run vendor:immutable",
     "vendor:draft": "curl https://cdnjs.cloudflare.com/ajax/libs/draft-js/0.10.1/Draft.js > src/vendor/draft.js",
