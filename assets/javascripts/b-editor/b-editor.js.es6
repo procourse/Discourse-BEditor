@@ -1,7 +1,8 @@
-var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+/* global React, Immutable, Draft */
 
 import * as utils from './utils';
 import toMarkdown from './to-markdown';
+import * as BlockquotePlugin from './plugins/blockquote';
 import StyleButton from './style-button';
 import Blockquote from './blockquote';
 import LinkButton from './link-button';
@@ -10,19 +11,15 @@ const {
   Editor,
   EditorState,
   SelectionState,
-  ContentState,
-  ContentBlock,
   RichUtils,
-  Modifier,
-  Entity
+  Modifier
 } = Draft;
 
 const BLOCK_TYPES = [{ label: 'UL', style: 'unordered-list-item' }, { label: 'OL', style: 'ordered-list-item' }];
 
 const INLINE_STYLES = [{ label: 'B', style: 'BOLD' }, { label: 'I', style: 'ITALIC' }, { label: 'U', style: 'UNDERLINE' }];
 
-const preventDefault = e => e.preventDefault();
-const stopPropagation = e => e.stopPropagation();
+const plugins = [BlockquotePlugin];
 
 export default class BEditor extends React.Component {
   constructor(props) {
@@ -62,8 +59,22 @@ export default class BEditor extends React.Component {
       }
     }));
 
-    this.Blockquote = this.Blockquote.bind(this);
-    this.handleBlockquoteJump = this.handleBlockquoteJump.bind(this);
+    this.eventHandlers = [];
+    this.blockRendererFns = [];
+
+    plugins.forEach(plugin => {
+      if (plugin.blockRenderMap) {
+        this.blockRenderMap = this.blockRenderMap.merge(plugin.blockRenderMap);
+      }
+
+      if (plugin.handleEvent) {
+        this.eventHandlers.push(plugin.eventHandlers);
+      }
+
+      if (plugin.blockRendererFn) {
+        this.blockRendererFns.push(plugin.blockRendererFn);
+      }
+    });
 
     this.renderBlock = this.renderBlock.bind(this);
     this.handleEditorClick = this.handleEditorClick.bind(this);
@@ -79,7 +90,7 @@ export default class BEditor extends React.Component {
     this.toggleBlockType = this.toggleBlockType.bind(this);
     this.toggleInlineStyle = this.toggleInlineStyle.bind(this);
 
-    this.updateValue = _.debounce(this.updateValue.bind(this), 100);
+    this.emitValueChange = _.debounce(this.emitValueChange.bind(this), 100);
   }
 
   render() {
@@ -152,23 +163,7 @@ export default class BEditor extends React.Component {
   }
 
   renderBlock(contentBlock) {
-    const type = contentBlock.getType();
-
-    if (type === 'quote') {
-      return {
-        component: this.Blockquote,
-        editable: true
-      };
-    }
-  }
-
-  Blockquote(props) {
-    const startBlock = utils.getStartBlock(this.state.editorState);
-
-    return React.createElement(Blockquote, _extends({}, props, {
-      active: startBlock === props.block,
-      onJump: this.handleBlockquoteJump
-    }));
+    return this.blockRendererFns.reduce((finalConfig, fn) => finalConfig || fn(contentBlock), null);
   }
 
   Link({ contentState, children, entityKey }) {
@@ -204,7 +199,7 @@ export default class BEditor extends React.Component {
     this.setEditorState(EditorState.createWithContent(contentState, this.decorator));
   }
 
-  handleEditorClick(e) {
+  handleEditorClick() {
     const { editorState } = this.state;
     const selection = editorState.getSelection();
 
@@ -238,10 +233,6 @@ export default class BEditor extends React.Component {
   setEditorState(nextEditorState) {
     const { editorState } = this.state;
 
-    if (nextEditorState.getSelection() !== editorState.getSelection() && nextEditorState.getCurrentContent() === editorState.getCurrentContent()) {
-      return this.handleSelectionChange(nextEditorState);
-    }
-
     if (nextEditorState.getCurrentContent().blockMap.last().type === 'quote') {
       const newBlock = utils.createEmptyBlock();
 
@@ -251,38 +242,7 @@ export default class BEditor extends React.Component {
     }
 
     this.setState({ editorState: nextEditorState });
-    this.updateValue({ editorState });
-  }
-
-  handleSelectionChange(nextEditorState) {
-    const anchorBlock = utils.getAnchorBlock(nextEditorState);
-    const contentState = nextEditorState.getCurrentContent();
-
-    const [nextBlockMap, changed] = contentState.blockMap.reduce(([nextBlockMap, changed], block, key) => {
-      if (block.type !== 'quote') {
-        return [nextBlockMap, changed];
-      }
-
-      const blockIsActive = block === anchorBlock;
-
-      if (blockIsActive !== block.data.active) {
-        const nextBlock = block.update('data', data => _.assign({}, data, { active: blockIsActive }));
-
-        return [nextBlockMap.set(key, nextBlock), true];
-      }
-
-      return [nextBlockMap, changed];
-    }, [contentState.blockMap, false]);
-
-    if (!changed) {
-      this.setState({ editorState: nextEditorState });
-    }
-
-    this.setState({
-      editorState: EditorState.set(nextEditorState, {
-        currentContent: contentState.set('blockMap', nextBlockMap)
-      })
-    });
+    this.emitValueChange({ editorState });
   }
 
   handleKeyCommand(command) {
@@ -305,19 +265,20 @@ export default class BEditor extends React.Component {
 
       if (editorState.getSelection().isCollapsed() && anchorBlock.getLength() === 0 && !blockBefore && contentState.blockMap.size > 1) {
         this.setEditorState(utils.deleteBlock(editorState, anchorBlock));
+        return true;
       }
     }
 
-    if (command == 'split-block' && utils.getAnchorBlock(editorState).type === 'quote') {
-      this.setEditorState(RichUtils.insertSoftNewline(editorState));
+    if (command === 'split-block') {
+      this.insertSoftNewline();
       return true;
     }
 
     // Default
-    let nextState = RichUtils.handleKeyCommand(editorState, command);
+    const nextEditorState = RichUtils.handleKeyCommand(editorState, command);
 
-    if (nextState) {
-      this.setEditorState(nextState);
+    if (nextEditorState) {
+      this.setEditorState(nextEditorState);
       return true;
     }
 
@@ -332,6 +293,7 @@ export default class BEditor extends React.Component {
   updateLink(e, { url, text }) {
     const { editorState } = this.state;
     const contentState = editorState.getCurrentContent();
+    const inlineStyle = editorState.getCurrentInlineStyle();
     const startEntity = utils.getStartEntity(editorState);
     const startEntityKey = utils.getStartEntityKey(editorState);
     const selection = editorState.getSelection();
@@ -361,7 +323,7 @@ export default class BEditor extends React.Component {
       return this.setEditorState(RichUtils.toggleLink(nextEditorState, nextEditorState.getSelection(), nextEntityKey));
     }
 
-    return this.setEditorState(EditorState.push(editorState, Modifier.replaceText(nextContentState, selection, text === '' ? url : text, null, nextEntityKey)));
+    return this.setEditorState(EditorState.push(editorState, Modifier.replaceText(nextContentState, selection, text === '' ? url : text, inlineStyle, nextEntityKey)));
   }
 
   unlink() {
@@ -377,6 +339,12 @@ export default class BEditor extends React.Component {
     }, (start, end) => {
       this.setEditorState(EditorState.forceSelection(EditorState.push(editorState, Modifier.applyEntity(contentState, SelectionState.createEmpty(startBlock.key).set('anchorOffset', start).set('focusOffset', end), null)), selection));
     });
+  }
+
+  insertSoftNewline() {
+    const { editorState } = this.state;
+
+    return this.setEditorState(EditorState.push(editorState, Modifier.replaceText(editorState.getCurrentContent(), editorState.getSelection(), '\n', editorState.getCurrentInlineStyle(), utils.getStartEntityKey(editorState))));
   }
 
   toggleBlockType(blockType) {
@@ -408,21 +376,92 @@ export default class BEditor extends React.Component {
   }
 
   handleEvent(eventName, ...args) {
-    const { editorState } = this.state;
+    const editorState = this.eventHandlers.reduce((editorState, handleEvent) => handleEvent(editorState, eventName, ...args), this.state.editorState);
 
-    switch (eventName) {
-      case 'quoteadd':
-        {
-          const quotes = [args[0]];
-          const html = `<blockquote>${quotes[0].innerHTML}</blockquote>`;
-          const contentState = utils.contentStateFromHTML({ html, quotes });
+    this.setEditorState(editorState);
 
-          this.setEditorState(utils.addQuoteBlock(editorState, contentState.blockMap.first()));
-        }
+    /*
+    const contentState = editorState.getCurrentContent();
+    const selection = editorState.getSelection();
+     switch(eventName) {
+      case 'uploadstart': {
+        const contentStateWithEntity = contentState.createEntity(
+          'UPLOAD',
+          'IMMUTABLE'
+        );
+        const entityKey = contentStateWithEntity.getLastCreatedEntityKey();
+        const nextContentState = Modifier.replaceText(
+          contentState,
+          selection,
+          I18n.t('uploading'),
+          editorState.getCurrentInlineStyle(),
+          entityKey
+        );
+         this.setEditorState(EditorState.push(
+          editorState,
+          nextContentState
+        ));
+         break;
+      }
+       case 'uploadend': {
+        const params = args[0];
+        let found = false;
+        let placeholderSel = null;
+         const contentStateWithEntity = contentState.createEntity(
+          params.type,
+          params.mutability,
+          params.data
+        );
+         const newEntityKey = contentStateWithEntity.getLastCreatedEntityKey();
+        const text = (() => {
+          if (params.type === 'IMAGE') {
+            return params.data.src;
+          }
+           if (params.type === 'LINK') {
+            return params.text;
+          }
+        })();
+         contentState.blockMap.forEach(block => {
+          if (found) {
+            return;
+          }
+           block.findEntityRanges(
+            character => {
+              const entityKey = character.getEntity();
+              return (
+                entityKey !== null &&
+                contentState.getEntity(entityKey).type === 'UPLOAD'
+              );
+            },
+            (start, end) => {
+              if (found) {
+                return;
+              }
+               found = true;
+              placeholderSel = SelectionState.createEmpty(block.key)
+                .set('anchorOffset', start)
+                .set('focusOffset', end);
+            }
+          );
+        });
+         const nextContentState = Modifier.replaceText(
+          contentStateWithEntity,
+          placeholderSel,
+          text,
+          null,
+          newEntityKey
+        );
+         this.setEditorState(EditorState.push(
+          editorState,
+          nextContentState
+        ));
+        break;
+      }
     }
+    */
   }
 
-  updateValue() {
+  emitValueChange() {
     const { editorState } = this.state;
     this.props.onValueChange(toMarkdown(editorState.getCurrentContent()));
   }

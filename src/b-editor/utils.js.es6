@@ -14,6 +14,10 @@ export function contentStateFromHTML({ html, quotes }) {
   let quoteIndex = 0;
   const res = Draft.convertFromHTML(html);
   const contentBlocks = res.contentBlocks.map(block => {
+    if (block.text === '\u200B') {
+      return new ContentBlock;
+    }
+
     if (block.type === 'blockquote') {
       return block.set('type', 'quote').set('data', quotes[quoteIndex++]);
     }
@@ -82,7 +86,6 @@ export function addQuoteBlock(editorState, quoteBlock) {
   const blockAtCursor = getStartBlock(editorState);
   const contentState = editorState.getCurrentContent();
   const blockAfter = contentState.getBlockAfter(blockAtCursor.key);
-  const selection = editorState.getSelection();
 
   const shouldReplace = (
     blockAtCursor.type !== 'quote' &&
@@ -96,8 +99,6 @@ export function addQuoteBlock(editorState, quoteBlock) {
   const shouldInsertEmptyBlock = !blockAfter || blockAfter.type === 'quote';
 
   if (shouldInsertEmptyBlock) {
-    const newBlock = createEmptyBlock();
-
     nextEditorState = insertBlockAfter(
       nextEditorState,
       quoteBlock.key,
@@ -146,16 +147,12 @@ export function deleteBlock(editorState, block) {
 export function getStartEntityKey(editorState) {
   const selection = editorState.getSelection();
   const startBlock = getStartBlock(editorState);
-  return startBlock.getEntityAt(selection.getStartOffset());
+  return startBlock && startBlock.getEntityAt(selection.getStartOffset());
 }
 
 export function getStartEntity(editorState) {
   const entityKey = getStartEntityKey(editorState);
   return entityKey && editorState.getCurrentContent().getEntity(entityKey);
-}
-
-export function toMarkdown(editorState) {
-
 }
 
 export function getEntityRanges(text, charMetaList) {

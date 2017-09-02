@@ -1,4 +1,5 @@
-import { default as computed, observes } from 'ember-addons/ember-computed-decorators';
+/* global React, ReactDOM */
+import { default as computed, on, observes } from 'ember-addons/ember-computed-decorators';
 import { cookAsync } from 'discourse/lib/text';
 import BEditor from '../../b-editor/index';
 
@@ -19,7 +20,7 @@ export default Ember.Component.extend({
       this.appEvents.on('composer:insert-block', text => {
         cookAsync(text, this.get('markdownOptions') || {})
           .then(cooked => {
-            const html = cooked.toString();
+            const html = this.normalizeHTML(cooked.toString());
 
             if (html === '') {
               return;
@@ -27,6 +28,42 @@ export default Ember.Component.extend({
 
             const quote = this.getQuote($(html).get(0));
             this.triggerEditorEvent('quoteadd', quote);
+          });
+      });
+
+      this.appEvents.on('composer:insert-text', () => {
+        this.triggerEditorEvent('uploadstart');
+      });
+
+      this.appEvents.on('composer:replace-text', (_, text) => {
+        console.log(text);
+        cookAsync(text, this.get('markdownOptions' || {}))
+          .then(cooked => {
+            const html = this.normalizeHTML(cooked.toString());
+            const $el = $(html).find('*:first');
+
+            if ($el.prop('tagName') === 'IMG') {
+              this.triggerEditorEvent('uploadend', {
+                type: 'IMAGE',
+                mutability: 'MUTABLE',
+                data: {
+                  src: $el.attr('src'),
+                  width: $el.attr('width'),
+                  height: $el.attr('height')
+                }
+              });
+            }
+
+            if ($el.prop('tagName') === 'A') {
+              this.triggerEditorEvent('uploadend', {
+                type: 'LINK',
+                mutability: 'MUTABLE',
+                text: $el.text() || $el.attr('src'),
+                data: {
+                  url: $el.attr('src')
+                }
+              });
+            }
           });
       });
     }
@@ -44,20 +81,33 @@ export default Ember.Component.extend({
     return this._editorEventHandler.apply(null, arguments);
   },
 
-  normalizeParagraph(el) {
-    const $el = $(el);
-    const $prevEl = $el.prev();
+  normalizeHTML(html) {
+    const $container = $('<div>').append(html);
 
-    // Convert p into 2 lines
-    if ($prevEl.prop('tagName') === 'P') {
-      $prevEl.html(`${$prevEl.html()}<br /><br />${$el.html()}`);
-      $el.remove();
-    }
+    $container.find('p').each((_, el) => {
+      const $el = $(el);
+      const $prevEl = $el.prev();
+
+      // Remove all new line characters
+      $el.html($el.html().replace(/[\n\r]/g, ''));
+
+      // Convert p into 2 lines
+      if ($prevEl.prop('tagName') === 'P') {
+        $prevEl.html(`${$prevEl.html()}<br /><br />${$el.html()}`);
+        $el.remove();
+      }
+    });
+
+    // Make internal links have hosts
+    $container.find('a').each((_, el) => {
+      el.href = el.href;
+    });
+
+    return $container.html();
   },
 
   getQuote(asideEl) {
     const $asideEl = $(asideEl);
-    $asideEl.find('p').each((_, el) => this.normalizeParagraph(el));
 
     return {
       avatarURL: $asideEl.find('.title img').attr('src'),
@@ -69,16 +119,9 @@ export default Ember.Component.extend({
   },
 
   getProps({ cooked }) {
-    const $container = $('<div>').append($(cooked.toString()));
+    const html = this.normalizeHTML(cooked.toString());
+    const $container = $('<div>').append($(html));
     const quotes = [];
-
-    // Convert p into 2 lines
-    $container.find('p').each((_, el) => this.normalizeParagraph(el));
-
-    // Make internal links have hosts
-    $container.find('a').each((_, el) => {
-      el.href = el.href;
-    });
 
     $container.find('aside').each((index, asideEl) => {
       const quote = this.getQuote(asideEl);
@@ -127,5 +170,14 @@ export default Ember.Component.extend({
           this.renderBEditor({ cooked });
         }
       });
+  },
+
+  @on('willDestroyElement')
+  removeAppEventListeners() {
+    if (this.get('composerEvents')) {
+      this.appEvents.off('composer:insert-block');
+      this.appEvents.off('composer:insert-text');
+      this.appEvents.off('composer:replace-text');
+    }
   }
 });

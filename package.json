@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "npm run build:vendor; npm run build:discourse; npm run build:b-editor",
-    "build:b-editor": "babel src/b-editor --out-dir=assets/javascripts/b-editor; for file in ./assets/javascripts/b-editor/*.js; do mv -- \"${file}\" \"${file/%js/es6}\"; done",
+    "build:b-editor": "babel src/b-editor --out-dir=assets/javascripts/b-editor; for file in $(find ./assets/javascripts/b-editor -name '*.js'); do mv -- \"${file}\" \"${file/%js/es6}\"; done",
     "build:discourse": "cp -r src/discourse assets/javascripts",
     "build:vendor": "mkdir -p assets/javascripts/vendor; cp src/vendor/*.js assets/javascripts/vendor",
 

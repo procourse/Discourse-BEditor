@@ -9,7 +9,6 @@ const withApi = api => {
     },
 
     getCookedHtml() {
-      console.log('cooked');
       return this.get('cooked').toString();
     }
   });
