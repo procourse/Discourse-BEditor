@@ -1,3 +1,5 @@
+/* global Immutable, Draft */
+
 const {
   Editor,
   EditorState,

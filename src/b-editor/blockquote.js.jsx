@@ -1,4 +1,3 @@
-import utils from './utils';
 import JumpButton from './jump-button';
 
 const { EditorBlock } = Draft;
@@ -14,7 +13,7 @@ export default class Blockquote extends React.Component {
   }
 
   render() {
-    const { contentState, selection, block, active } = this.props;
+    const { block, active } = this.props;
      const { avatarURL, username } = block.data;
 
      return (

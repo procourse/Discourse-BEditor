@@ -1,5 +1,6 @@
-export default class StyleButton extends React.Component {
+/* global React */
 
+export default class StyleButton extends React.Component {
   constructor() {
     super();
     this.handleMouseDown = e => {

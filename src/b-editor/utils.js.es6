@@ -1,11 +1,8 @@
 const {
-  Editor,
   EditorState,
   SelectionState,
   ContentState,
   ContentBlock,
-  CharacterMetadata,
-  RichUtils
 } = Draft;
 
 const { List } = Immutable;

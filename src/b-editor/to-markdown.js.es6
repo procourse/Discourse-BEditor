@@ -1,7 +1,6 @@
 import {
   BLOCK_TYPE,
-  ENTITY_TYPE,
-  INLINE_STYLE
+  ENTITY_TYPE
 } from './constants';
 
 import * as utils from './utils';

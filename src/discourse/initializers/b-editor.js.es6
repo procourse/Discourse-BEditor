@@ -1,5 +1,4 @@
 import { withPluginApi } from 'discourse/lib/plugin-api';
-import { h } from 'virtual-dom';
 
 const withApi = api => {
   api.modifyClass('model:composer', {

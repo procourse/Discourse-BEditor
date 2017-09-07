@@ -27,7 +27,9 @@ export default Ember.Component.extend({
             }
 
             const quote = this.getQuote($(html).get(0));
-            this.triggerEditorEvent('quoteadd', quote);
+            this.triggerEditorEvent('quoteadd', {
+              quote
+            });
           });
       });
 
@@ -36,7 +38,6 @@ export default Ember.Component.extend({
       });
 
       this.appEvents.on('composer:replace-text', (_, text) => {
-        console.log(text);
         cookAsync(text, this.get('markdownOptions' || {}))
           .then(cooked => {
             const html = this.normalizeHTML(cooked.toString());
@@ -48,8 +49,8 @@ export default Ember.Component.extend({
                 mutability: 'MUTABLE',
                 data: {
                   src: $el.attr('src'),
-                  width: $el.attr('width'),
-                  height: $el.attr('height')
+                  width: Number($el.attr('width')),
+                  height: Number($el.attr('height'))
                 }
               });
             }

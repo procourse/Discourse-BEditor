@@ -1,7 +1,8 @@
-import StyleButton from './style-button';
-import utils from './utils';
+/* global React */
 
-const { RichUtils } = Draft;
+import StyleButton from '../../style-button';
+import utils from '../../utils';
+
 const stopPropagation = e => e.stopPropagation();
 
 export default class LinkButton extends React.Component {
@@ -208,10 +209,14 @@ export default class LinkButton extends React.Component {
     this.setState({ url: e.target.value });
   }
 
-  submit(e) {
+  submit() {
     const { url, text, entityKey } = this.state;
 
-    this.props.onRequestChange(e, { url, text, entityKey });
+    this.context.dispatch('linkupdate', { url, text, entityKey });
     this.closeModal();
   }
 }
+
+LinkButton.contextTypes = {
+  dispatch: () => null
+};

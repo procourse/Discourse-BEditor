@@ -1,5 +1,10 @@
-/* global Immutable */
+/* global Immutable, Draft */
 
+const {
+  EditorBlock,
+  EditorState,
+  SelectionState
+} = Draft;
 import utils from '../utils';
 export const TYPE = 'block';
 
@@ -20,22 +25,92 @@ export function blockRendererFn(contentBlock) {
   }
 }
 
-export function handleEvent(editorState, eventName, quote) {
-  if (eventName === 'quoteadd') {
-    const quotes = [quote];
-    const html = `<blockquote>${quote.innerHTML}</blockquote>`;
+export function reducer(editorState, { name, payload }) {
+  if (name === 'quoteadd') {
+    const quotes = [payload.quote];
+    const html = `<blockquote>${quotes[0].innerHTML}</blockquote>`;
     const quoteContentState = utils.contentStateFromHTML({ html, quotes });
 
     return utils.addQuoteBlock(editorState, quoteContentState.blockMap.first());
   }
 
-  if (eventName === 'change') {}
+  if (name === 'change') {
+    // Ensure new block at OEF
+    if (editorState.getCurrentContent().blockMap.last().type === 'quote') {
+      const newBlock = utils.createEmptyBlock();
+
+      editorState = EditorState.set(editorState, {
+        currentContent: editorState.getCurrentContent().update('blockMap', blockMap => blockMap.set(newBlock.key, newBlock))
+      });
+    }
+
+    const anchorBlock = utils.getAnchorBlock(editorState);
+    const contentState = editorState.getCurrentContent();
+
+    // Set active status of quote block
+    const [nextBlockMap, changed] = contentState.blockMap.reduce(([nextBlockMap, changed], block, key) => {
+      if (block.type !== 'quote') {
+        return [nextBlockMap, changed];
+      }
+
+      const blockIsActive = block === anchorBlock;
+
+      if (blockIsActive !== block.data.active) {
+        const nextBlock = block.update('data', data => _.assign({}, data, { active: blockIsActive }));
+
+        return [nextBlockMap.set(key, nextBlock), true];
+      }
+
+      return [nextBlockMap, changed];
+    }, [contentState.blockMap, false]);
+
+    if (changed) {
+      editorState = EditorState.set(editorState, {
+        currentContent: contentState.set('blockMap', nextBlockMap)
+      });
+    }
+
+    return editorState;
+  }
+
+  if (name === 'quotejump') {
+    const { block, direction } = payload;
+    const contentState = editorState.getCurrentContent();
+    const [targetBlock, insertBlock] = (() => {
+      if (direction === 'above') {
+        return [contentState.getBlockBefore(block.key), utils.insertBlockBefore];
+      }
+
+      return [contentState.getBlockAfter(block.key), utils.insertBlockAfter];
+    })();
+
+    if (targetBlock && targetBlock.type !== 'quote') {
+      return EditorState.forceSelection(editorState, SelectionState.createEmpty(targetBlock.key).set('anchorOffset', targetBlock.getLength()).set('focusOffset', targetBlock.getLength()));
+    }
+
+    const newBlock = utils.createEmptyBlock();
+
+    return EditorState.forceSelection(insertBlock(editorState, block.key, newBlock), SelectionState.createEmpty(newBlock.key));
+  }
+
+  return editorState;
+}
+
+function jump(props, context, direction) {
+  return () => context.dispatch('quotejump', {
+    block: props.block,
+    direction
+  });
 }
 
 function JumpButton({ className, onClick }) {
   return React.createElement(
     'div',
-    { contentEditable: false, className: `BEditor-jumpButton ${className}`, onClick: onClick },
+    {
+      contentEditable: false,
+      className: `BEditor-jumpButton ${className}`,
+      onClick: onClick
+    },
     React.createElement(
       'svg',
       { viewBox: [0, 0, 21, 12] },
@@ -55,14 +130,18 @@ function JumpButton({ className, onClick }) {
 
 const stopPropagation = e => e.stopPropagation();
 
-function Blockquote({ selection, block }) {
+function Blockquote(props, context) {
+  const { selection, block } = props;
   const { avatarURL, username } = block.data;
   const active = selection.getStartKey() === block.key;
 
   return React.createElement(
     'aside',
     { className: 'quote', onClick: stopPropagation },
-    active && React.createElement(JumpButton, { className: 'above', onClick: this.jumpAbove }),
+    active && React.createElement(JumpButton, {
+      className: 'above',
+      onClick: jump(props, context, 'above')
+    }),
     React.createElement(
       'div',
       { className: 'title', contentEditable: false },
@@ -72,8 +151,15 @@ function Blockquote({ selection, block }) {
     React.createElement(
       'blockquote',
       null,
-      React.createElement(EditorBlock, this.props)
+      React.createElement(EditorBlock, props)
     ),
-    active && React.createElement(JumpButton, { className: 'below', onClick: this.jumpBelow })
+    active && React.createElement(JumpButton, {
+      className: 'below',
+      onClick: jump(props, context, 'below')
+    })
   );
+};
+
+Blockquote.contextTypes = {
+  dispatch: () => null
 };

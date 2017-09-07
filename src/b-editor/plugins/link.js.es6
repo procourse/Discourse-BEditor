@@ -1,10 +1,117 @@
-import StyleButton from './style-button';
-import utils from './utils';
+/* global Draft, React */
 
-const { RichUtils } = Draft;
+const {
+  EditorState,
+  SelectionState,
+  RichUtils,
+  Modifier
+} = Draft;
+
+import StyleButton from '../style-button';
+import utils from '../utils';
+
+export function reducer(editorState, { name, payload }) {
+  const contentState = editorState.getCurrentContent();
+  const selection = editorState.getSelection();
+  const startEntityKey = utils.getStartEntityKey(editorState);
+
+  if (name === 'linkupdate') {
+    const { url, text } = payload;
+    const inlineStyle = editorState.getCurrentInlineStyle();
+    const startEntity = utils.getStartEntity(editorState);
+
+    const selectedLinkURL = (
+      startEntity && startEntity.type === 'LINK' ?
+        startEntity.data.url :
+        null
+    );
+
+    if (text === '' && selectedLinkURL !== null)  {
+      return EditorState.push(
+          editorState,
+          contentState.mergeEntityData(startEntityKey, {
+            url: url
+        })
+      );
+    }
+
+    const [ nextEntityKey, nextContentState ] = (() => {
+      if (selectedLinkURL === url) {
+        return [ startEntityKey, contentState ];
+      }
+
+      const contentStateWithEntity = contentState.createEntity(
+        'LINK',
+        'MUTABLE',
+        { url }
+      );
+
+      return [
+        contentStateWithEntity.getLastCreatedEntityKey(),
+        contentStateWithEntity
+      ];
+    })();
+
+    const nextEditorState = EditorState.set(
+      editorState,
+      { currentContent: nextContentState }
+    );
+
+    if (text === '' && !selection.isCollapsed()) {
+      // When selection is collapsed
+      return RichUtils.toggleLink(
+        nextEditorState,
+        nextEditorState.getSelection(),
+        nextEntityKey
+      );
+    }
+
+    return EditorState.push(
+      editorState,
+      Modifier.replaceText(
+        nextContentState,
+        selection,
+        text === '' ? url : text,
+        inlineStyle,
+        nextEntityKey
+      )
+    );
+  }
+
+  if (name === 'linkremove') {
+    const startBlock = utils.getStartBlock(editorState);
+
+    startBlock.findEntityRanges(
+      char => {
+        const entityKey = char.getEntity();
+        return entityKey === startEntityKey;
+      },
+      (start, end) => {
+        editorState = EditorState.forceSelection(
+          EditorState.push(
+            editorState,
+            Modifier.applyEntity(
+              contentState,
+              SelectionState.createEmpty(startBlock.key)
+                .set('anchorOffset', start)
+                .set('focusOffset', end),
+              null
+            )
+          ),
+          selection
+        );
+      }
+    );
+
+    return editorState;
+  }
+
+  return editorState;
+}
+
 const stopPropagation = e => e.stopPropagation();
 
-export default class LinkButton extends React.Component {
+export class LinkButton extends React.Component {
   constructor(props) {
     super(props);
 
@@ -176,10 +283,43 @@ export default class LinkButton extends React.Component {
     this.setState({ url: e.target.value });
   }
 
-  submit(e) {
+  submit() {
     const { url, text, entityKey } = this.state;
 
-    this.props.onRequestChange(e, { url, text, entityKey });
+    this.context.dispatch('linkupdate', { url, text, entityKey });
     this.closeModal();
   }
 }
+
+LinkButton.contextTypes = {
+  dispatch: () => null
+};
+
+export class UnlinkButton extends React.Component {
+  constructor() {
+    super(...arguments);
+    this.unlink = this.unlink.bind(this);
+  }
+
+  render() {
+    const { editorState } = this.props;
+    const entity = utils.getStartEntity(editorState);
+
+    return (
+      <StyleButton
+        disabled={!entity || entity.type !== 'LINK'}
+        onClick={this.unlink}
+        style="UNLINK"
+      />
+    );
+  }
+
+  unlink() {
+    this.context.dispatch('linkremove');
+  }
+}
+
+
+UnlinkButton.contextTypes = {
+  dispatch: () => null
+};
