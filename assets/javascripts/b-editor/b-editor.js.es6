@@ -20,7 +20,7 @@ const {
 
 const BLOCK_TYPES = [{ label: 'UL', style: 'unordered-list-item' }, { label: 'OL', style: 'ordered-list-item' }];
 
-const INLINE_STYLES = [{ label: 'B', style: 'BOLD' }, { label: 'I', style: 'ITALIC' }, { label: 'U', style: 'UNDERLINE' }];
+const INLINE_STYLES = [{ label: 'B', style: 'BOLD' }, { label: 'I', style: 'ITALIC' }];
 
 const plugins = [CorePlugin, BlockquotePlugin, ImagePlugin, LinkPlugin, UploadPlugin];
 

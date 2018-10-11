@@ -13,8 +13,6 @@ function focusingRightAfterImage(editorState) {
   const selection = editorState.getSelection();
 
   const block = contentState.blockMap.get(selection.getFocusKey());
-  console.log(block.text, selection.focusOffset);
-  console.log(block.text[selection.focusOffset] === ZERO_WIDTH_CHAR);
 }
 
 export function reducer(editorState, payload) {

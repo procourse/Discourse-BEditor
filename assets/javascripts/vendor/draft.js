@@ -3433,10 +3433,6 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	  STRIKETHROUGH: {
 	    textDecoration: 'line-through'
-	  },
-
-	  UNDERLINE: {
-	    textDecoration: 'underline'
 	  }
 	};
 
@@ -3904,8 +3900,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	  i: 'ITALIC',
 	  s: 'STRIKETHROUGH',
 	  strike: 'STRIKETHROUGH',
-	  strong: 'BOLD',
-	  u: 'UNDERLINE'
+	  strong: 'BOLD'
 	};
 
 	var anchorAttr = ['className', 'href', 'rel', 'target', 'title'];
@@ -4038,14 +4033,14 @@ return /******/ (function(modules) { // webpackBootstrap
 	          style.remove('ITALIC');
 	        }
 
-	        if (textDecoration === 'underline') {
-	          style.add('UNDERLINE');
-	        }
+	        // if (textDecoration === 'underline') {
+	        //   style.add('UNDERLINE');
+	        // }
 	        if (textDecoration === 'line-through') {
 	          style.add('STRIKETHROUGH');
 	        }
 	        if (textDecoration === 'none') {
-	          style.remove('UNDERLINE');
+	          // style.remove('UNDERLINE');
 	          style.remove('STRIKETHROUGH');
 	        }
 	      }).toOrderedSet();
@@ -4456,7 +4451,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	      return isOSX && isCtrlKeyCommand(e) ? 'transpose-characters' : null;
 	    case 85:
 	      // U
-	      return hasCommandModifier(e) ? 'underline' : null;
+	      // return hasCommandModifier(e) ? 'underline' : null;
 	    case 87:
 	      // W
 	      return isOSX && isCtrlKeyCommand(e) ? 'backspace-word' : null;
@@ -7839,7 +7834,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	      case 'italic':
 	        return RichTextEditorUtil.toggleInlineStyle(editorState, 'ITALIC');
 	      case 'underline':
-	        return RichTextEditorUtil.toggleInlineStyle(editorState, 'UNDERLINE');
+	        // return RichTextEditorUtil.toggleInlineStyle(editorState, 'UNDERLINE');
 	      case 'code':
 	        return RichTextEditorUtil.toggleCode(editorState);
 	      case 'backspace':

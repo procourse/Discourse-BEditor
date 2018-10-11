@@ -188,10 +188,10 @@ class MarkupGenerator {
         if (style.has(BOLD)) {
           content = `**${content}**`;
         }
-        if (style.has(UNDERLINE)) {
-          // TODO: encode `+`?
-          content = `++${content}++`;
-        }
+        // if (style.has(UNDERLINE)) {
+        //   // TODO: encode `+`?
+        //   content = `++${content}++`;
+        // }
         if (style.has(ITALIC)) {
           content = `_${content}_`;
         }
